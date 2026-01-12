@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Emotion Detection System</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto+Mono:wght@300;400&display=swap');
+
+        :root {
+            --bg-color: #1a1b21;
+            --panel-color: rgba(26, 27, 33, 0.7);
+            --accent-safe: #03dac6;
+            --accent-warn: #cf6679;
+            --accent-active: #bb86fc;
+            --text-main: #e0e0e0;
+            --shadow-light: rgba(255, 255, 255, 0.05);
+            --shadow-dark: rgba(0, 0, 0, 0.5);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Roboto Mono', monospace;
+            color: var(--text-main);
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: grid;
+            grid-template-columns: 320px 1fr 320px;
+            grid-template-rows: 100px 1fr 180px;
+            padding: 20px;
+            box-sizing: border-box;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel-color);
+            border-radius: 20px;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            border: 1px solid rgba(255,255,255,0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            pointer-events: auto;
+            transition: transform 0.1s ease-out;
+        }
+
+        h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--accent-active);
+            margin: 0;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .value {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .status-safe { color: var(--accent-safe); }
+        .status-warn { color: var(--accent-warn); }
+
+        .left-panel { grid-column: 1; grid-row: 2; align-self: center; }
+        .right-panel { grid-column: 3; grid-row: 2; align-self: center; }
+        
+        .bottom-panel { 
+            grid-column: 2; 
+            grid-row: 3; 
+            align-self: end; 
+            margin-bottom: 20px;
+        }
+
+        #video-section {
+            grid-column: 2;
+            grid-row: 1 / span 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            pointer-events: none;
+        }
+        
+        .video-panel {
+            width: 640px;
+            background: var(--panel-color);
+            border-radius: 20px;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            border: 2px solid rgba(187,134,252,0.3);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            pointer-events: auto;
+        }
+
+        .video-container {
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 20px;
+            border: 2px solid rgba(3,218,198,0.3);
+            box-shadow: 0 0 20px rgba(3,218,198,0.2);
+        }
+
+        #videoFeed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--accent-active), var(--accent-safe));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(187,134,252,0.4);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(187,134,252,0.6);
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border: 2px dashed rgba(187,134,252,0.3);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-family: 'Roboto Mono', monospace;
+            cursor: pointer;
+        }
+
+        .emotion-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent-active), var(--accent-safe));
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin: 5px 5px 5px 0;
+            font-size: 0.9em;
+            box-shadow: 0 0 10px rgba(187,134,252,0.5);
+        }
+
+        .result-item {
+            margin: 10px 0;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border-left: 4px solid var(--accent-active);
+            border-radius: 8px;
+        }
+
+        .result-label {
+            font-weight: bold;
+            color: var(--accent-safe);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #scanlines {
+            position: fixed; 
+            inset: 0; 
+            z-index: 30; 
+            pointer-events: none; 
+            mix-blend-mode: overlay; 
+            opacity: 0.06;
+            background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 4px;
+        }
+
+        #preview {
+            width: 100%;
+            max-height: 200px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+            border: 2px solid rgba(3,218,198,0.3);
+        }
+
+        #previewImg {
+            width: 100%;
+            height: auto;
+        }
+
+        @media (max-width: 1400px) {
+            #ui-layer {
+                grid-template-columns: 280px 1fr 280px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div id="ui-layer">
+        
+        <div class="panel left-panel" id="panel-left">
+            <h3>System Status</h3>
+            
+            <div class="stat-row">
+                <span>Camera</span>
+                <span class="value status-safe" id="camStatus">Offline</span>
+            </div>
+            
+            <div class="stat-row">
+                <span>Detection</span>
+                <span class="value status-safe">Active</span>
+            </div>
+            
+            <br>
+            <h3>Emotions</h3>
+            <div style="font-size: 0.85rem; color: #aaa; line-height: 1.6;">
+                Angry · Disgust<br>
+                Fear · Happy<br>
+                Sad · Surprise<br>
+                Neutral
+            </div>
+        </div>
+
+        <div id="video-section">
+            <div class="video-panel">
+                <h3 style="text-align:center; margin-bottom:15px;">🎭 Live Emotion Detection</h3>
+                <div class="video-container">
+                    <img id="videoFeed" src="" alt="Video Feed">
+                </div>
+                <div class="button-group">
+                    <button id="startBtn" onclick="startCamera()">Start Camera</button>
+                    <button id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="scanlines"></div>
+
+        <div class="panel right-panel" id="panel-right">
+            <h3>Emotion Data</h3>
+            
+            <div id="emotionResult">
+                <div class="stat-row">
+                    <span>Current Mood</span>
+                    <span class="value status-safe" id="currentEmotion">--</span>
+                </div>
+                
+                <div class="stat-row">
+                    <span>Confidence</span>
+                    <span class="value" id="confidence">0%</span>
+                </div>
+                
+                <div class="stat-row">
+                    <span>Faces</span>
+                    <span class="value" id="faceCount">0</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; font-size: 0.8rem; color: #888; text-align: center; font-style: italic;">
+                "AI-powered facial analysis"
+            </div>
+        </div>
+
+        <div class="panel bottom-panel" id="panel-bottom">
+            <h3>📤 Upload Image</h3>
+            <input type="file" id="imageInput" accept="image/*" onchange="previewImage()">
+            <div id="preview" style="display:none;">
+                <img id="previewImg">
+            </div>
+            <button onclick="detectEmotion()" style="width:100%;">Analyze Image</button>
+            <div id="uploadResult" style="margin-top:15px;"></div>
+        </div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Wait for Three.js to load
+        window.addEventListener('load', function() {
+            // THREE.JS SPACE BACKGROUND
+            const scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.0008);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ 
+                canvas: document.getElementById('bg-canvas'), 
+                alpha: true,
+                antialias: true 
+            });
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // CREATE STARS
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            
+            for (let i = 0; i < 8000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = -Math.random() * 2000;
+                vertices.push(x, y, z);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            const material = new THREE.PointsMaterial({ 
+                color: 0xffffff, 
+                size: 2.5, 
+                transparent: true, 
+                opacity: 0.9,
+                sizeAttenuation: true
+            });
+            const starField = new THREE.Points(geometry, material);
+            scene.add(starField);
+
+            // Add colored stars
+            const coloredStarsGeo = new THREE.BufferGeometry();
+            const coloredVerts = [];
+            for (let i = 0; i < 1000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = -Math.random() * 2000;
+                coloredVerts.push(x, y, z);
+            }
+            coloredStarsGeo.setAttribute('position', new THREE.Float32BufferAttribute(coloredVerts, 3));
+            const coloredMat = new THREE.PointsMaterial({ 
+                color: 0x03dac6, 
+                size: 3, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            const coloredStars = new THREE.Points(coloredStarsGeo, coloredMat);
+            scene.add(coloredStars);
+
+            // Add purple accent stars
+            const purpleStarsGeo = new THREE.BufferGeometry();
+            const purpleVerts = [];
+            for (let i = 0; i < 800; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = -Math.random() * 2000;
+                purpleVerts.push(x, y, z);
+            }
+            purpleStarsGeo.setAttribute('position', new THREE.Float32BufferAttribute(purpleVerts, 3));
+            const purpleMat = new THREE.PointsMaterial({ 
+                color: 0xbb86fc, 
+                size: 3.5, 
+                transparent: true, 
+                opacity: 0.5 
+            });
+            const purpleStars = new THREE.Points(purpleStarsGeo, purpleMat);
+            scene.add(purpleStars);
+
+            camera.position.z = 5;
+
+            // ANIMATION LOOP
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                starField.rotation.y += 0.0003;
+                starField.rotation.x += 0.0001;
+                
+                coloredStars.rotation.y -= 0.0002;
+                coloredStars.rotation.x += 0.00015;
+                
+                purpleStars.rotation.y += 0.00025;
+                purpleStars.rotation.x -= 0.0002;
+                
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            // RESIZE HANDLER
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // PARALLAX EFFECT
+            document.addEventListener('mousemove', (e) => {
+                const x = (window.innerWidth - e.pageX * 2) / 100;
+                const y = (window.innerHeight - e.pageY * 2) / 100;
+
+                const leftPanel = document.getElementById('panel-left');
+                const rightPanel = document.getElementById('panel-right');
+                const bottomPanel = document.getElementById('panel-bottom');
+
+                // Camera parallax
+                camera.position.x += (e.clientX - window.innerWidth / 2) * 0.00002;
+                camera.position.y += -(e.clientY - window.innerHeight / 2) * 0.00002;
+
+                // Panel parallax
+                if (leftPanel) leftPanel.style.transform = `translateX(${x}px) translateY(${y}px)`;
+                if (rightPanel) rightPanel.style.transform = `translateX(${x * 0.8}px) translateY(${y * 0.8}px)`;
+                if (bottomPanel) bottomPanel.style.transform = `translateX(${x * 0.5}px) translateY(${y * 0.5}px)`;
+            });
+        });
+
+        // CAMERA FUNCTIONS
+        let isStreaming = false;
+        let updateInterval = null;
+
+        function startCamera() {
+            document.getElementById('videoFeed').src = '/video_feed?' + new Date().getTime();
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('camStatus').textContent = 'Online';
+            document.getElementById('camStatus').className = 'value status-safe';
+            isStreaming = true;
+        }
+
+        function stopCamera() {
+            document.getElementById('videoFeed').src = '';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('camStatus').textContent = 'Offline';
+            document.getElementById('camStatus').className = 'value status-warn';
+            isStreaming = false;
+            
+            document.getElementById('currentEmotion').textContent = '--';
+            document.getElementById('confidence').textContent = '0%';
+            document.getElementById('faceCount').textContent = '0';
+        }
+
+        function previewImage() {
+            const file = document.getElementById('imageInput').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('previewImg').src = e.target.result;
+                    document.getElementById('preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function detectEmotion() {
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) {
+                alert('Please select an image');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/detect-emotion', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('uploadResult').innerHTML = `<div class="result-item"><span class="result-label">Error:</span> ${data.error}</div>`;
+                } else {
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div class="result-item">
+                            <span class="result-label">Emotion:</span> ${data.emotion}
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Confidence:</span> ${(data.confidence * 100).toFixed(2)}%
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Faces:</span> ${data.faces_detected}
+                        </div>
+                        ${data.all_emotions ? `<div class="result-item">
+                            ${data.all_emotions.map(e => `<span class="emotion-badge">${e.emotion}: ${(e.confidence*100).toFixed(1)}%</span>`).join('')}
+                        </div>` : ''}
+                    `;
+                    
+                    document.getElementById('currentEmotion').textContent = data.emotion;
+                    document.getElementById('confidence').textContent = (data.confidence * 100).toFixed(1) + '%';
+                    document.getElementById('faceCount').textContent = data.faces_detected;
+                }
+            })
+            .catch(err => {
+                document.getElementById('uploadResult').innerHTML = `<div class="result-item"><span class="result-label">Error:</span> ${err.message}</div>`;
+            });
+        }
+    </script>
+</body>
+</html>
+        function startCamera() {
+            document.getElementById('videoFeed').src = '/video_feed';
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            showStatus('cameraStatus', '📹 Live emotion detection active', 'success');
+        }
+
+        function stopCamera() {
+            document.getElementById('videoFeed').src = '';
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('cameraStatus').style.display = 'none';
+        }
+
+        function previewImage() {
+            const file = document.getElementById('imageInput').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('previewImg').src = e.target.result;
+                    document.getElementById('preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function detectEmotion() {
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) {
+                showStatus('uploadStatus', 'Please select an image', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            showStatus('uploadStatus', 'Detecting...', 'success');
+
+            fetch('/detect-emotion', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    showStatus('uploadStatus', 'Error: ' + data.error, 'error');
+                } else {
+                    showStatus('uploadStatus', 'Detection complete!', 'success');
+                    document.getElementById('uploadResult').innerHTML = `
+                        <div class="result-item">
+                            <span class="result-label">Emotion:</span> ${data.emotion}
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Confidence:</span> ${(data.confidence * 100).toFixed(2)}%
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Faces Detected:</span> ${data.faces_detected}
+                        </div>
+                        ${data.all_emotions ? `<div class="result-item">
+                            <span class="result-label">All Emotions:</span>
+                            ${data.all_emotions.map(e => `<div class="emotion-badge">${e.emotion}: ${(e.confidence*100).toFixed(1)}%</div>`).join('')}
+                        </div>` : ''}
+                    `;
+                    document.getElementById('uploadResult').classList.add('show');
+                }
+            })
+            .catch(err => showStatus('uploadStatus', 'Error: ' + err.message, 'error'));
+        }
+
+        function showStatus(elementId, message, type) {
+            const el = document.getElementById(elementId);
+            el.textContent = message;
+            el.className = 'status ' + type;
+            el.style.display = 'block';
+        }
+    </script>
+</html>
