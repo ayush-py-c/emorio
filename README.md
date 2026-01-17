@@ -1,5 +1,8 @@
 # Emotion Detection Application
 
+<img width="1862" height="1021" alt="image" src="https://github.com/user-attachments/assets/65411fec-67e6-4500-9acc-9ab3a0deb997" />
+
+
 A real-time emotion detection web application built with Flask and TensorFlow that uses deep learning to recognize facial expressions and classify emotions.
 
 ## 🎯 Overview
